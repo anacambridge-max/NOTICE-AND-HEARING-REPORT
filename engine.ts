@@ -1,4 +1,5 @@
 import {AEROS,MAPPING_TEXT} from './data/mapping';
+export {AEROS};
 export type Metrics={noticeGenerated:number;noticeDelivered:number;deliveredPct:number;hearingLapse:number;hearingHeld:number;heldLapsed:number;heldLapsedPct:number;parked:number};
 export type MappingRow={ps:number;bloName:string;bloMobile:string;supervisor:string;aero:string;aeroMobile:string};
 export type Snapshot={id:string;name:string;uploadedAt:string;sourceType:'detailed'|'aggregate';rows:Record<number,Metrics>;aggregate:Metrics|null};
