@@ -12,32 +12,41 @@ function headerIndex(headers:string[],names:string[]){return headers.findIndex(h
 export function parseWorkbook(rows:any[][]){
  const non=rows.filter(r=>r.some((x:any)=>String(x??'').trim()!==''));
  if(!non.length)return {sourceType:'aggregate' as const,rows:{},aggregate:null};
- const headerAt=non.findIndex(r=>{const h=r.map((x:any)=>norm(x));return h.some(x=>x==='part no'||x==='part number'||x==='ps no'||x==='ps number'||x.includes('notice generated'))});
- const header=non[headerAt>=0?headerAt:0]||[];
- const next=non[(headerAt>=0?headerAt:0)+1]||[];
+ const scoreHeader=(r:any[])=>{const h=r.map((x:any)=>norm(x));let s=0;
+  if(h.some(x=>x==='part no'||x==='part number'||x==='ps no'||x==='ps number'||x.includes('part no')))s+=5;
+  if(h.some(x=>x==='notice generated'||x.includes('notice generated')))s+=3;
+  if(h.some(x=>x==='notice delivered'||x.includes('notice delivered')))s+=3;
+  if(h.some(x=>x==='hearings held'||x.includes('hearings held')))s+=2;
+  if(h.some(x=>x==='hearing date lapsed'||x.includes('hearing date lapsed')||x==='hearing lapse'))s+=2;
+  return s;
+ };
+ let headerAt=0,best=-1;
+ non.forEach((r,i)=>{const s=scoreHeader(r);if(s>best){best=s;headerAt=i}});
+ const header=non[headerAt]||[];
  const headerNorm=header.map((x:any)=>norm(x));
- const nextLooksLikeHeader=next.some((x:any)=>{const s=norm(x);return s==='part no'||s.includes('notice generated')||s.includes('notice delivered')||s.includes('hearings held')||s.includes('hearing date lapsed')});
- const body=non.slice((headerAt>=0?headerAt:0)+(nextLooksLikeHeader?2:1));
  const headers=header.map((x:any)=>String(x??''));
- const psIdx=headerNorm.findIndex(h=>h==='part no'||h==='part number'||h==='ps'||h==='ps no'||h==='ps number'||h.includes('part no.')||h.includes('part number'));
+ const psIdx=headerNorm.findIndex(h=>h==='part no'||h==='part number'||h==='ps'||h==='ps no'||h==='ps number'||h.includes('part no')||h.includes('part number'));
  const idx={
   gen:headerIndex(headers,['Notice Generated']),
   del:headerIndex(headers,['Notice Delivered']),
   lapse:headerIndex(headers,['Hearing Date Lapsed','Hearing Lapse']),
   held:headerIndex(headers,['Hearings Held','Hearing Held']),
-  park:headerIndex(headers,['ERO/AERO Status Parked For Final Publication','Parked for Final Publication'])
+  park:headerIndex(headers,['ERO/AERO Status Parked For Final Publication','Parked for Final Publication','Parked'])
  };
- if(psIdx>=0&&body.some(r=>/^\d+$/.test(String(r[psIdx]??'').trim()))){
+ const body=non.slice(headerAt+1);
+ if(psIdx>=0 && idx.gen>=0 && idx.del>=0){
   const out:Record<number,Metrics>={};
   for(const r of body){
-   const ps=num(r[psIdx]); if(!ps)continue;
-   const gen=num(r[idx.gen]),del=num(r[idx.del]),lapse=num(r[idx.lapse]),held=num(r[idx.held]),park=num(r[idx.park]);
+   const raw=String(r[psIdx]??'').trim();
+   const ps=num(raw);
+   if(!/^\d+(?:\.0+)?$/.test(raw)||ps<1||ps>430)continue;
+   const gen=num(r[idx.gen]),del=num(r[idx.del]),lapse=idx.lapse>=0?num(r[idx.lapse]):0,held=idx.held>=0?num(r[idx.held]):0,park=idx.park>=0?num(r[idx.park]):0;
    out[ps]={noticeGenerated:gen,noticeDelivered:del,deliveredPct:pct(del,gen),hearingLapse:lapse,hearingHeld:held,heldLapsed:lapse+held,heldLapsedPct:pct(lapse+held,gen),parked:park};
   }
-  return {sourceType:'detailed' as const,rows:out,aggregate:null};
+  if(Object.keys(out).length) return {sourceType:'detailed' as const,rows:out,aggregate:null};
  }
- const data=body.find(r=>r.some((x:any)=>typeof x==='number'))||[];
- const gen=num(data[idx.gen]),del=num(data[idx.del]),held=num(data[idx.held]),lapse=num(data[idx.lapse]),park=num(data[idx.park]);
+ const data=non.slice(headerAt+1).find(r=>r.some((x:any)=>typeof x==='number'))||[];
+ const gen=idx.gen>=0?num(data[idx.gen]):0,del=idx.del>=0?num(data[idx.del]):0,held=idx.held>=0?num(data[idx.held]):0,lapse=idx.lapse>=0?num(data[idx.lapse]):0,park=idx.park>=0?num(data[idx.park]):0;
  return {sourceType:'aggregate' as const,rows:{},aggregate:{noticeGenerated:gen,noticeDelivered:del,deliveredPct:pct(del,gen),hearingLapse:lapse,hearingHeld:held,heldLapsed:lapse+held,heldLapsedPct:pct(lapse+held,gen),parked:park}};
 }
 export function aeroTotals(snapshot:Snapshot){return AEROS.map(a=>{const rows=MASTER.filter(r=>r.aero===a.name);const m=rows.reduce((x,r)=>{const v=snapshot.rows[r.ps]||ZERO;x.noticeGenerated+=v.noticeGenerated;x.noticeDelivered+=v.noticeDelivered;x.hearingLapse+=v.hearingLapse;x.hearingHeld+=v.hearingHeld;x.parked+=v.parked;return x},{...ZERO});const heldLapsed=m.hearingLapse+m.hearingHeld;return {...a,count:rows.length,supervisorCount:new Set(rows.map(r=>r.supervisor)).size,...m,deliveredPct:pct(m.noticeDelivered,m.noticeGenerated),heldLapsed,heldLapsedPct:pct(heldLapsed,m.noticeGenerated)}})}
