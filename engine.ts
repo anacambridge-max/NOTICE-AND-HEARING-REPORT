@@ -9,8 +9,9 @@ export function num(v:any){if(typeof v==='number')return v;const n=Number(String
 export function pct(a:number,b:number){return b?Math.round(a/b*10000)/100:0}
 export function parseWorkbook(rows:any[][]){
  const non=rows.filter(r=>r.some((x:any)=>String(x??'').trim()!==''));
- const headers=(non[0]||[]).map((x:any)=>String(x??''));const body=non.slice(1);const nh=headers.map(norm);
- const find=(names:string[])=>nh.findIndex(h=>names.some(n=>h.includes(norm(n))));
+ const headerAt=Math.max(0,non.findIndex(r=>r.some((x:any)=>norm(x).includes('notice generated'))));
+ const header=non[headerAt]||[]; const sub=non[headerAt+1]||[]; const headers=header.map((x:any,i:number)=>[String(x??''),String(sub[i]??'')].filter(Boolean).join(' ')); const body=non.slice(headerAt+2);
+ const nh=headers.map(norm); const find=(names:string[])=>nh.findIndex(h=>names.some(n=>h.includes(norm(n))));
  const psIdx=nh.findIndex(h=>h==='ps'||h.includes('ps no')||h.includes('ps number')||h.includes('part no')||h.includes('part number'));
  const idx={gen:find(['notice generated']),del:find(['notice delivered']),lapse:find(['hearing date lapsed','hearing lapse']),held:find(['hearing held']),park:find(['parked for final publication'])};
  if(psIdx>=0&&body.some(r=>/^\d+$/.test(String(r[psIdx]??'').trim()))){
@@ -18,7 +19,7 @@ export function parseWorkbook(rows:any[][]){
   for(const r of body){const ps=num(r[psIdx]);if(!ps)continue;const gen=num(r[idx.gen]),del=num(r[idx.del]),lapse=num(r[idx.lapse]),held=num(r[idx.held]),park=num(r[idx.park]);out[ps]={noticeGenerated:gen,noticeDelivered:del,deliveredPct:pct(del,gen),hearingLapse:lapse,hearingHeld:held,heldLapsed:lapse+held,heldLapsedPct:pct(lapse+held,gen),parked:park}}
   return {sourceType:'detailed' as const,rows:out,aggregate:null};
  }
- const data=body.find(r=>r.some((x:any)=>typeof x==='number'))||[];const gen=num(data[0]),del=num(data[3]),held=num(data[5]),lapse=num(data[6]),park=num(data[13]);
+ const data=body.find(r=>r.some((x:any)=>typeof x==='number'))||[];const gen=num(data[idx.gen]),del=num(data[idx.del]),held=num(data[idx.held]),lapse=num(data[idx.lapse]),park=num(data[idx.park]);
  return {sourceType:'aggregate' as const,rows:{},aggregate:{noticeGenerated:gen,noticeDelivered:del,deliveredPct:pct(del,gen),hearingLapse:lapse,hearingHeld:held,heldLapsed:lapse+held,heldLapsedPct:pct(lapse+held,gen),parked:park}};
 }
 export function aeroTotals(snapshot:Snapshot){return AEROS.map(a=>{const rows=MASTER.filter(r=>r.aero===a.name);const m=rows.reduce((x,r)=>{const v=snapshot.rows[r.ps]||ZERO;x.noticeGenerated+=v.noticeGenerated;x.noticeDelivered+=v.noticeDelivered;x.hearingLapse+=v.hearingLapse;x.hearingHeld+=v.hearingHeld;x.parked+=v.parked;return x},{...ZERO});const heldLapsed=m.hearingLapse+m.hearingHeld;return {...a,count:rows.length,supervisorCount:new Set(rows.map(r=>r.supervisor)).size,...m,deliveredPct:pct(m.noticeDelivered,m.noticeGenerated),heldLapsed,heldLapsedPct:pct(heldLapsed,m.noticeGenerated)}})}
