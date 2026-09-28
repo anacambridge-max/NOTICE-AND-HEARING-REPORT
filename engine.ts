@@ -12,14 +12,14 @@ function headerIndex(headers:string[],names:string[]){return headers.findIndex(h
 export function parseWorkbook(rows:any[][]){
  const non=rows.filter(r=>r.some((x:any)=>String(x??'').trim()!==''));
  if(!non.length)return {sourceType:'aggregate' as const,rows:{},aggregate:null};
- const headerAt=non.findIndex(r=>r.some((x:any)=>norm(x).includes('notice generated')));
+ const headerAt=non.findIndex(r=>{const h=r.map((x:any)=>norm(x));return h.some(x=>x==='part no'||x==='part number'||x==='ps no'||x==='ps number'||x.includes('notice generated'))});
  const header=non[headerAt>=0?headerAt:0]||[];
  const next=non[(headerAt>=0?headerAt:0)+1]||[];
  const headerNorm=header.map((x:any)=>norm(x));
  const nextLooksLikeHeader=next.some((x:any)=>{const s=norm(x);return s==='part no'||s.includes('notice generated')||s.includes('notice delivered')||s.includes('hearings held')||s.includes('hearing date lapsed')});
  const body=non.slice((headerAt>=0?headerAt:0)+(nextLooksLikeHeader?2:1));
  const headers=header.map((x:any)=>String(x??''));
- const psIdx=headerNorm.findIndex(h=>h==='part no'||h==='ps'||h.includes('part number')||h.includes('ps no')||h.includes('ps number'));
+ const psIdx=headerNorm.findIndex(h=>h==='part no'||h==='part number'||h==='ps'||h==='ps no'||h==='ps number'||h.includes('part no.')||h.includes('part number'));
  const idx={
   gen:headerIndex(headers,['Notice Generated']),
   del:headerIndex(headers,['Notice Delivered']),
