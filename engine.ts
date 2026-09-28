@@ -8,7 +8,7 @@ export const MASTER:MappingRow[]=MAPPING_TEXT.split('\n').map(line=>{const [ps,a
 const norm=(s:string)=>String(s??'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 export function num(v:any){if(typeof v==='number')return v;const n=Number(String(v??'').replace(/,/g,''));return Number.isFinite(n)?n:0}
 export function pct(a:number,b:number){return b?Math.round(a/b*10000)/100:0}
-function headerIndex(headers:string[],names:string[]){return headers.findIndex(h=>names.some(n=>h===norm(n)||h.includes(norm(n))))}
+function headerIndex(headers:string[],names:string[]){return headers.map(h=>norm(h)).findIndex(h=>names.some(n=>{const x=norm(n);return h===x||h.includes(x)}))}
 export function parseWorkbook(rows:any[][]){
  const non=rows.filter(r=>r.some((x:any)=>String(x??'').trim()!==''));
  if(!non.length)return {sourceType:'aggregate' as const,rows:{},aggregate:null};
